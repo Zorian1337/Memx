@@ -103,4 +103,14 @@ public class Commands
         return false;
     }
 
+    public static bool GetCommandSucess(TcpClient Connection)
+    {
+        if (Connection is null || !Connection.Connected) return false;
+        byte[] received = Connection.Client.ReadExact(4);
+        uint status = received.Bitswap32();
+        Debug.WriteLine($"status: 0x{status:X8}");
+        if (status == (uint)Response.CMD_SUCCESS) return true;
+        else return false;
+    }
+
 }
