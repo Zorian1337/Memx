@@ -13,6 +13,7 @@ namespace Memx.Struct;
 
 public enum Response: uint
 {
+    AUTH_MAGIC = 0xBB40E64D,
     CMD_SUCCESS = 0x40000000,
     CMD_ERROR = 0xF0000002,
     CMD_DATA_NULL = 0xF0000003,
@@ -27,7 +28,7 @@ public enum Command: uint
     CMD_FW_VERSION = 0xBD000500,
     CMD_BRANDING = 0xBD000501,
     CMD_PLATFORM_ID = 0xBD000502,
-    CMD_PROC_NOP = 0xBDAACC06, // response with CMD_SUCCESS
+    CMD_PROC_NOP = 0xBDAACC06, 
 
     //  process commands
 
@@ -37,6 +38,8 @@ public enum Command: uint
     CMD_PROC_WRITE_MULTI_HANDLE = 0xBDAACC04,
 
     CMD_PROC_MAPS = 0xBDAA0004,
+
+    CMD_PROC_AUTH = 0xBDAACCFF,
 }
 
 
@@ -45,8 +48,6 @@ public enum Command: uint
 
 public class Packet
 {
-    public static uint AuthMagic = 0xBB40E64D;
-
     public Packet() { }
 
     public Packet(Command cmd, byte[] payload)
