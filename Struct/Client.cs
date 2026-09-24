@@ -57,14 +57,32 @@ public class Client
     }
 
 
-    public void Authenticate(uint flags = 0xFFFFFFFF)
+    public void Authenticate(uint flags = 0x10002)
     {
         if (Connection is null || !Connection.Connected) return;
 
+        // BUILD OUR PAYLOAD
         byte[] Payload = new byte[8];
+        BinaryPrimitives.WriteUInt32LittleEndian(Payload.AsSpan(0,4), (uint)Response.AUTH_MAGIC);
+        BinaryPrimitives.WriteUInt32LittleEndian(Payload.AsSpan(4, 4), flags);
 
-        BinaryPrimitives.WriteUInt32LittleEndian(Payload, Packet.AuthMagic);
-        BinaryPrimitives.WriteUInt32LittleEndian(Payload, flags);
+        if(Commands.TryGetCommandSuccessUShort(Connection, Command.CMD_PROC_AUTH, Payload, out ushort challengeLength))
+        {
+            Debug.WriteLine($"Auth: Sucess");
+
+            Debug.WriteLine($"challenge_length = {challengeLength}");
+
+            byte[] challenge = Connection.Client.ReadExact(challengeLength);
+            Debug.WriteLine($"challenge: {BitConverter.ToString(challenge)}");
+
+            byte[] CompletedChallenge = AuthLfsr.CompleteChallenge(challenge);
+            Connection.Client.SendAll(CompletedChallenge);
+
+            if(Commands.GetCommandSucess(Connection)) { Debug.WriteLine($"Authenticated!"); }
+            else { Debug.WriteLine($"Failed to authenticate"); }
+
+        }
+        else Debug.WriteLine($"Auth: Failed");
     }
 
 
@@ -79,7 +97,7 @@ public class Client
         byte[] Payload = new byte[4];
         BinaryPrimitives.WriteUInt32LittleEndian(Payload, pid);
 
-        if(Commands.TryGetCommandSuccessLength(Connection, Command.CMD_PROC_MAPS, Payload, out int Length))
+        if(Commands.TryGetCommandSuccessInt(Connection, Command.CMD_PROC_MAPS, Payload, out int Length))
         {
             int dataRange = 58;
             int ExpectedLength = Length * dataRange;
