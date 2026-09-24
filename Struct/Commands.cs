@@ -45,13 +45,13 @@ public class Commands
 
     
 
-    public static bool TryGetCommandSuccessLength(TcpClient Connection, Command Command, byte[] Payload, out int Result)
+    public static bool TryGetCommandSuccessLength(TcpClient Connection, Command Command, byte[] Payload, out int Result, Response ExpectedResponse = Response.CMD_SUCCESS)
     {
         Result = -1;
 
         if (Connection is null || !Connection.Connected) return false;
 
-        Result = GetCommandSuccessLength(Connection, Command, Payload);
+        Result = GetCommandSuccessLength(Connection, Command, Payload, ExpectedResponse);
 
         if (Result == -1) return false;
         else return true;
@@ -69,7 +69,7 @@ public class Commands
     /// <param name="Command"></param>
     /// <param name="Payload"></param>
     /// <returns>-1 on fail</returns>
-    public static int GetCommandSuccessLength(TcpClient Connection, Command Command, byte[] Payload)
+    public static int GetCommandSuccessLength(TcpClient Connection, Command Command, byte[] Payload, Response ExpectedResponse = Response.CMD_SUCCESS)
     {
 
         if (Connection is null || !Connection.Connected) return -1;
@@ -85,7 +85,7 @@ public class Commands
 
             uint status = Status.Bitswap32();
 
-            if (status == (uint)Response.CMD_SUCCESS) return (int)BinaryPrimitives.ReadUInt32LittleEndian(Length);
+            if (status == (uint)ExpectedResponse) return (int)BinaryPrimitives.ReadUInt32LittleEndian(Length);
             else return -1;
         }
 
