@@ -2,8 +2,11 @@
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.Diagnostics;
 using System.Net.Sockets;
 using System.Text;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace Memx.Struct;
 
@@ -43,24 +46,31 @@ public class Commands
     };
 
 
-    
+    public static bool TryGetCommandSuccessUShort(TcpClient Connection, Command Command, byte[] Payload, out ushort Result)
+    {
+        Result = 0;
 
-    public static bool TryGetCommandSuccessLength(TcpClient Connection, Command Command, byte[] Payload, out int Result, Response ExpectedResponse = Response.CMD_SUCCESS)
+        if (Connection is null || !Connection.Connected) return false;
+
+        byte[] received = GetCommandSuccessLength(Connection, Command, Payload, 2);
+        Result = BinaryPrimitives.ReadUInt16LittleEndian(received);
+
+        if (Result == 0) return false;
+        else return true;
+    }
+
+    public static bool TryGetCommandSuccessInt(TcpClient Connection, Command Command, byte[] Payload, out int Result)
     {
         Result = -1;
 
         if (Connection is null || !Connection.Connected) return false;
 
-        Result = GetCommandSuccessLength(Connection, Command, Payload, ExpectedResponse);
+        byte[] received = GetCommandSuccessLength(Connection, Command, Payload, 4);
+        Result = (int)BinaryPrimitives.ReadUInt32LittleEndian(received);
 
         if (Result == -1) return false;
         else return true;
     }
-
-    //public static byte[] GetCommandSucessArray(TcpClient Connection, Command Command, byte[] Payload)
-    //{
-
-    //}
 
     /// <summary>
     /// Gets the status result of a command and fetches the length param if successful
@@ -69,26 +79,28 @@ public class Commands
     /// <param name="Command"></param>
     /// <param name="Payload"></param>
     /// <returns>-1 on fail</returns>
-    public static int GetCommandSuccessLength(TcpClient Connection, Command Command, byte[] Payload, Response ExpectedResponse = Response.CMD_SUCCESS)
+    public static byte[] GetCommandSuccessLength(TcpClient Connection, Command Command, byte[] Payload, int Length)
     {
+        if (GetCommandSucess(Connection, Command, Payload)) return Connection.Client.ReadExact(Length);
+        else return Array.Empty<byte>();
+    }
 
-        if (Connection is null || !Connection.Connected) return -1;
+    public static bool GetCommandSucess(TcpClient Connection, Command Command, byte[] Payload)
+    {
+        if (Connection is null || !Connection.Connected) return false;
         byte[] binaryPayload = new Packet(Command, Payload).ToBinary();
-
         int SentBytes = Connection.Client.SendAll(binaryPayload);
-
         if (SentBytes > 0)
         {
-            byte[] received = Connection.Client.ReadExact(8);
-            byte[] Status = received[..4];
-            byte[] Length = received[4..8];
+            byte[] received = Connection.Client.ReadExact(4);
+            uint status = received.Bitswap32();
 
-            uint status = Status.Bitswap32();
-
-            if (status == (uint)ExpectedResponse) return (int)BinaryPrimitives.ReadUInt32LittleEndian(Length);
-            else return -1;
+            if (status == (uint)Response.CMD_SUCCESS) return true;
+            else return false;
         }
 
-        return -1;
+        // return false by default
+        return false;
     }
+
 }
