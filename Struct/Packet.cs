@@ -38,6 +38,35 @@ public enum Command: uint
     CMD_PROC_WRITE_MULTI_HANDLE = 0xBDAACC04,
 
     CMD_PROC_MAPS = 0xBDAA0004,
+    CMD_PROC_INTALL = 0xBDAA0005,
+    CMD_PROC_CALL = 0xBDAA0006,
+    CMD_PROC_ELF = 0xBDAA0007,
+    /// <summary>
+    /// legacy scan
+    /// </summary>
+    CMD_PROC_SCAN = 0xBDAA0009,
+
+    CMD_PROC_INFO = 0xBDAA000A,
+    CMD_PROC_ALLOC = 0xBDAA000B,
+    CMD_PROC_FREE = 0xBDAA000C,
+
+    FIRST_MAP_PROBE = 0xBDAA000D,
+
+    CMD_PROC_ALLOC_HINTED = 0xBDAA000E,
+    CMD_PROC_ELF_RPC = 0xBDAA0010,
+    CMD_PROC_DISASM_REGION = 0xBDAA0020,
+    CMD_PROC_EXTRACT_CODE_XREFS = 0xBDAA0021,
+    CMD_PROC_FIND_XREFS_TO = 0xBDAA0022,
+    CMD_PROC_READ_STACK = 0xBDAA0023,
+
+    ASSEMBLE86_64 = 0xBDAA0024,
+
+    CMD_PROC_SCAN_AOB = 0xBDAA0501,
+    CMD_PROC_SCAN_AOB_MULTI = 0xBDAA0502,
+    CMD_PROC_SCAN_START = 0xBDAACC01,
+    CMD_PROC_SCAN_COUNT = 0xBDAACC02,
+    CMD_PROC_SCAN_GET = 0xBDAACC03,
+    //TURBOSCAN family - 0xBDAACC10-0xBDAACC17
 
     CMD_PROC_AUTH = 0xBDAACCFF,
 }
@@ -50,7 +79,7 @@ public class Packet
 {
     public Packet() { }
 
-    public Packet(Command cmd, byte[] payload)
+    public Packet(Command cmd, byte[]? payload = null)
     {
         this.cmd = (uint)cmd;
         Payload = payload;
@@ -59,7 +88,7 @@ public class Packet
         else this.datalen = 0;
     }
 
-    public Packet(uint cmd, byte[] payload)
+    public Packet(uint cmd, byte[]? payload = null)
     {
         this.cmd = cmd;
         Payload = payload;
@@ -72,7 +101,7 @@ public class Packet
     public uint cmd { get; set; }
     public uint datalen { get; set; }
 
-    public byte[] Payload { get; set; }
+    public byte[]? Payload { get; set; }
 
     // anything after is extra
 
