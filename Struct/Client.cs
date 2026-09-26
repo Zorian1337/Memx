@@ -29,6 +29,7 @@ public enum ScanType : byte
     UnknownInitialValue = 11,
     UnknownInitialLowValue = 12,
 }
+
 public enum ValueType : byte
 {
     valTypeUInt8 = 0,   // 1
@@ -44,6 +45,7 @@ public enum ValueType : byte
     valTypeArrBytes = 10,  // from lenData (mask-driven)
     valTypeString = 11,  // from lenData
 }
+
 public class Client
 {
     public string IP { get; set; }
@@ -55,17 +57,35 @@ public class Client
 
     public UdpClient UDP { get; set; }
 
+    public bool IsAuthenticated = false;
+
+    public bool Disconnect()
+    {
+        if (Connection is null) return true;
+
+        if (Connection?.Connected == true)
+        {
+            Connection.Close();
+            Connection.Dispose();
+            Connection = null;
+        }
+
+        return false;
+    }
+
     public bool Connect(string IP = "192.168.68.7", int Port = 744)
     {
         // refresh connection
         if (Connection?.Connected == true)
         {
             MessageBox.Show("PS5Dbg already connected -> Disconnecting..");
-            Connection.Close();
+            Disconnect();
         }
 
+
+
         // init null client
-        if (Connection is null)
+        if (Connection is null || !Connection.Connected)
         {
             Connection = new TcpClient();
             cancellationTokenSource = new CancellationTokenSource();
@@ -88,9 +108,9 @@ public class Client
     }
 
 
-    public void Authenticate(uint flags = 0x10002)
+    public bool Authenticate(uint flags = 0x10002)
     {
-        if (Connection is null || !Connection.Connected) return;
+        if (Connection is null || !Connection.Connected) return false;
 
         // BUILD OUR PAYLOAD
         byte[] Payload = new byte[8];
@@ -109,13 +129,123 @@ public class Client
             byte[] CompletedChallenge = AuthLfsr.CompleteChallenge(challenge);
             Connection.Client.SendAll(CompletedChallenge);
 
-            if(Commands.GetCommandSucess(Connection)) { Debug.WriteLine($"Authenticated!"); }
-            else { Debug.WriteLine($"Failed to authenticate"); }
+            if(Commands.GetCommandSucess(Connection)) { Debug.WriteLine($"Authenticated!"); return true; }
+            else { Debug.WriteLine($"Failed to authenticate"); return false; }
 
         }
         else Debug.WriteLine($"Auth: Failed");
+
+        return false;
     }
 
+    public record scan_start_packet(uint pid, ulong regionStart, ulong regionEnd, byte valueType, byte compareType, byte alignment, uint lenData)
+    {
+        public uint RegionLength => (uint)(regionEnd - regionStart);
+
+        // instead of sending regionEnd send uint32 length (RegionLength)
+
+        public byte[] ToBinary()
+        {
+            //byte[] _mask = mask ?? Array.Empty<byte>();
+
+            byte[] buffer = new byte[23];
+            var Span = buffer.AsSpan();
+            BinaryPrimitives.WriteUInt32LittleEndian(Span[0..4], pid);
+            BinaryPrimitives.WriteUInt64LittleEndian(Span[4..12], regionStart);
+            BinaryPrimitives.WriteUInt32LittleEndian(Span[12..16], RegionLength);
+            Span[16] = valueType;
+            Span[17] = compareType;
+            Span[18] = alignment;
+            BinaryPrimitives.WriteUInt32LittleEndian(Span[19..23], lenData);
+            return buffer;
+        }
+    }
+    public record ScanResultFirstDisplay(string Address, string Value, string Previous, string First);
+    public record ScanResult(ulong Address, uint Offset, byte[] Value, string Hex)
+    {
+
+        public ScanResultFirstDisplay ToFirstDisplay(ValueType Type)
+        {
+            Debug.WriteLine("ToFirstDisplay");
+
+            string ValueResult = "";
+            switch (Type)
+            {
+                case ValueType.valTypeInt32: ValueResult = BitConverter.ToInt32(Value).ToString(); break;
+            }
+
+            return new ScanResultFirstDisplay($"0x{Address:X}", ValueResult, ValueResult, ValueResult);
+        }
+    }
+    public List<ScanResult> StartScan(uint pid, ulong regionStart, ulong regionEnd, string Value, byte valueType, byte compareType, byte[]? mask = null)
+    {
+        if (Connection is null || !Connection.Connected) return default;
+
+        // check if we are authenticated before we start the scan...
+        if (!IsAuthenticated) return default;
+
+        // alignment is based on the byte size
+        byte[] seed = BitConverter.GetBytes(int.Parse(Value));
+        byte[] _mask = [0xFF, 0xFF, 0xFF, 0xFF];//mask ?? Array.Empty<byte>();
+
+        uint lenData = (uint)(seed.Length + _mask.Length);
+        byte[] Payload = new scan_start_packet(pid, regionStart, regionEnd, (byte)ValueType.valTypeInt32, (byte)ScanType.ExactValue,4, lenData).ToBinary();
+        byte[] Packet = new Packet(Command.CMD_PROC_SCAN_START, Payload).ToBinary();
+
+        // start scan
+        if (Connection.Client.SendAll(Packet) < 0) return default; ;
+        Debug.WriteLine("sent");
+        if (!Commands.GetCommandSucess(Connection)) return default;
+        Debug.WriteLine("ack 1 ok");
+
+        byte[] TrailingPacket = new byte[lenData];
+        seed.CopyTo(TrailingPacket, 0);
+        _mask.CopyTo(TrailingPacket, seed.Length);
+        //TrailingPacket = TrailingPacket.Concat(seed).Concat(_mask).ToArray();
+        if (Connection.Client.SendAll(TrailingPacket) < 0) return default;
+
+        if (!Commands.GetCommandSucess(Connection)) return default;
+        Debug.WriteLine("ack 2 ok");
+        // result stream
+        var results = new List<ScanResult>();
+        int valueWidth = 4;                    // int32
+        int entrySize = 4 + valueWidth;       // offset + value = 8
+
+        while (true)
+        {
+            byte[] lenBuf = Connection.Client.ReadExact(8);
+            ulong blockLen = BitConverter.ToUInt64(lenBuf, 0);
+
+            if (blockLen == 0xFFFFFFFFFFFFFFFFUL)
+            {
+                Debug.WriteLine("sentinel — stream done");
+                break;
+            }
+
+            if (blockLen % (ulong)entrySize != 0)
+                throw new InvalidDataException($"block_len {blockLen} % {entrySize} != 0");
+
+            byte[] block = Connection.Client.ReadExact((int)blockLen);
+
+            for (int i = 0; i < block.Length; i += entrySize)
+            {
+                uint offset = BitConverter.ToUInt32(block, i);
+                byte[] value = block[(i + 4)..(i + entrySize)];
+
+                ulong Address = (regionStart + offset);
+                string Hex = BitConverter.ToString(value);
+                results.Add(new ScanResult(Address, offset, value, Hex));
+                Debug.WriteLine($"0x{Address:X} : {offset} - {value} : {Hex}");
+            }
+            Debug.WriteLine($"block: {blockLen} bytes, {block.Length / entrySize} entries");
+        }
+
+        // final ack
+        if (!Commands.GetCommandSucess(Connection)) return default;
+        Debug.WriteLine($"scan done, {results.Count} results");
+
+        return results;
+    }
 
 
 
@@ -256,7 +386,7 @@ public class Client
                     string name = nameArray.ToUTF8String().TrimEnd('\0', ' ');
                     uint pid = BinaryPrimitives.ReadUInt32LittleEndian(pidArray);
                     ProcessList.Add(new Struct.ProcessList(name, pid));
-                    Debug.WriteLine($"[{name}:{pid}]");
+                    //Debug.WriteLine($"[{name}:{pid}]");
                 }
 
                 return true;

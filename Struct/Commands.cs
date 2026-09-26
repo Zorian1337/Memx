@@ -21,7 +21,7 @@ public class CommandAction<T>
 
 public class Commands
 {
-
+    
 
     public static Dictionary<Command, CommandAction<string>> CommandRegisteryString = new Dictionary<Command, CommandAction<string>>()
     {
@@ -42,7 +42,7 @@ public class Commands
             }
 
             return String.Empty;
-        }),
+        })
     };
 
 

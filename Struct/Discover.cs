@@ -23,7 +23,6 @@ public class Discover
     public static void DetectLocalConsoles()
     {
 
-
         IPAddress localIP = IPAddress.Parse("192.168.68.40");
 
         // only one instance of this watcher is needed
