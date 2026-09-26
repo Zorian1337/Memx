@@ -13,6 +13,22 @@ using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace Memx.Struct;
 
+public enum ScanType : byte
+{
+    ExactValue = 0,
+    FuzzyValue = 1,
+    BiggerThan = 2,
+    SmallerThan = 3,
+    ValueBetween = 4,
+    IncreasedValue = 5,
+    IncreasedValueBy = 6,
+    DecreasedValue = 7,
+    DecreasedValueBy = 8,
+    ChangedValue = 9,
+    UnchangedValue = 10,
+    UnknownInitialValue = 11,
+    UnknownInitialLowValue = 12,
+}
 public enum ValueType : byte
 {
     valTypeUInt8 = 0,   // 1
