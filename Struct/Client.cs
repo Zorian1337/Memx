@@ -13,6 +13,21 @@ using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace Memx.Struct;
 
+public enum ValueType : byte
+{
+    valTypeUInt8 = 0,   // 1
+    valTypeInt8 = 1,   // 1
+    valTypeUInt16 = 2,   // 2
+    valTypeInt16 = 3,   // 2
+    valTypeUInt32 = 4,   // 4
+    valTypeInt32 = 5,   // 4
+    valTypeUInt64 = 6,   // 8
+    valTypeInt64 = 7,   // 8
+    valTypeFloat = 8,   // 4
+    valTypeDouble = 9,   // 8
+    valTypeArrBytes = 10,  // from lenData (mask-driven)
+    valTypeString = 11,  // from lenData
+}
 public class Client
 {
     public string IP { get; set; }
